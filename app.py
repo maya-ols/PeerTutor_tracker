@@ -4,7 +4,7 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-SHEET_NAME = "Peer Tutor tracker"  # I'll update this once you confirm the exact name
+SHEET_NAME = "Peer Tutor tracker"
 
 # ---- Connect to Google Sheets ----
 scopes = ["https://www.googleapis.com/auth/spreadsheets",
@@ -16,8 +16,8 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 sheet = client.open(SHEET_NAME).sheet1
 
-st.set_page_config(page_title="Tutoring Program Tracker", layout="centered")
-st.title("📚 Tutoring Program Tracker")
+st.set_page_config(page_title="Peer Tutoring Tracker", layout="centered")
+st.title("📚 Peer Tutoring Tracker")
 
 tab1, tab2 = st.tabs(["Log a Session", "Summary"])
 
@@ -64,26 +64,53 @@ with tab2:
     st.subheader("Program Summary")
 
     records = sheet.get_all_records()
+
     if not records:
         st.info("No sessions logged yet.")
     else:
         df = pd.DataFrame(records)
         df["Minutes"] = pd.to_numeric(df["Minutes"], errors="coerce")
+        df["Date"] = pd.to_datetime(df["Date"], format="%m/%d/%Y", errors="coerce")
 
-        total_sessions = len(df)
-        total_hours = df["Minutes"].sum() / 60
+        today = pd.Timestamp(datetime.now().date())
+
+        # ---- TODAY'S SUMMARY ----
+        st.markdown("## Today's Summary")
+        today_df = df[df["Date"] == today]
+
+        if today_df.empty:
+            st.info("No sessions logged today yet.")
+        else:
+            col1, col2 = st.columns(2)
+            col1.metric("Sessions Today", len(today_df))
+            col2.metric("Hours Today", f"{today_df['Minutes'].sum() / 60:.1f}")
+
+            today_tutor_summary = (
+                today_df.groupby("Tutor")["Minutes"].sum() / 60
+            ).round(1).sort_values(ascending=False).reset_index()
+            today_tutor_summary.columns = ["Tutor", "Hours Today"]
+
+            st.dataframe(today_tutor_summary, use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        # ---- ALL-TIME SUMMARY ----
+        st.markdown("## All-Time Summary")
 
         col1, col2 = st.columns(2)
-        col1.metric("Total Sessions", total_sessions)
-        col2.metric("Total Hours", f"{total_hours:.1f}")
+        col1.metric("Total Sessions", len(df))
+        col2.metric("Total Hours", f"{df['Minutes'].sum() / 60:.1f}")
 
-        st.markdown("**Hours per Tutor**")
-        tutor_summary = (df.groupby("Tutor")["Minutes"].sum() / 60).round(1).sort_values(ascending=False)
-        st.bar_chart(tutor_summary)
+        all_time_tutor_summary = (
+            df.groupby("Tutor")["Minutes"].sum() / 60
+        ).round(1).sort_values(ascending=False).reset_index()
+        all_time_tutor_summary.columns = ["Tutor", "Total Hours"]
+        all_time_tutor_summary.insert(0, "Rank", range(1, len(all_time_tutor_summary) + 1))
 
-        st.markdown("**Hours per Student**")
-        student_summary = (df.groupby("Student")["Minutes"].sum() / 60).round(1).sort_values(ascending=False)
-        st.bar_chart(student_summary)
-
-        st.markdown("**All Sessions**")
-        st.dataframe(df, use_container_width=True)
+        st.markdown(f"**{len(all_time_tutor_summary)} tutors total**")
+        st.dataframe(
+            all_time_tutor_summary,
+            use_container_width=True,
+            hide_index=True,
+            height=min(35 * (len(all_time_tutor_summary) + 1), 600)
+        )
