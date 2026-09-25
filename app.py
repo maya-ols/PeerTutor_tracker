@@ -4,7 +4,7 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-SHEET_NAME = "Tutoring Sessions"  # I'll update this once you confirm the exact name
+SHEET_NAME = "Peer Tutor tracker"  # I'll update this once you confirm the exact name
 
 # ---- Connect to Google Sheets ----
 scopes = ["https://www.googleapis.com/auth/spreadsheets",
